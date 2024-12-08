@@ -29,6 +29,12 @@ ALLOWED_HOSTS = [
     "pc-usage-manager.onrender.com",
 ]
 
+CSRF_TRUSTED_ORIGINS = [
+    'https://pc-usage-manager.onrender.com',
+    'http://127.0.0.1',
+    'http://localhost:8000',
+]
+
 
 # Application definition
 
