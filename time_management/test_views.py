@@ -99,3 +99,55 @@ def test_get_nonexistent_user_time(api_client):
     response = perform_get_user_time(api_client, "nonexistentuser")
     assert response.status_code == 404
     assert response.data["error"] == "User or time not found"
+
+@pytest.mark.django_db
+def test_login_success(api_client, create_user_with_time):
+    """Test successful login."""
+    username = "testuser"
+    password = "password123"
+    create_user_with_time(username, password)
+
+    url = reverse("login")
+    data = {"username": username, "password": password}
+    response = api_client.post(url, data, format="json")
+
+    assert response.status_code == 200
+    assert response.data["success"] is True
+    assert response.data["username"] == username
+    assert "remaining_time" in response.data
+
+
+@pytest.mark.django_db
+def test_login_failure_invalid_credentials(api_client, create_user_with_time):
+    """Test login failure due to invalid credentials."""
+    username = "testuser"
+    password = "password123"
+    create_user_with_time(username, password)
+
+    url = reverse("login")
+    data = {"username": username, "password": "wrongpassword"}
+    response = api_client.post(url, data, format="json")
+
+    assert response.status_code == 401
+    assert response.data["error"] == "Invalid username or password."
+
+
+@pytest.mark.django_db
+def test_login_failure_missing_fields(api_client):
+    """Test login failure due to missing username or password."""
+    url = reverse("login")
+
+    # Missing both fields
+    response = api_client.post(url, {}, format="json")
+    assert response.status_code == 400
+    assert response.data["error"] == "Both username and password are required."
+
+    # Missing password
+    response = api_client.post(url, {"username": "testuser"}, format="json")
+    assert response.status_code == 400
+    assert response.data["error"] == "Both username and password are required."
+
+    # Missing username
+    response = api_client.post(url, {"password": "password123"}, format="json")
+    assert response.status_code == 400
+    assert response.data["error"] == "Both username and password are required."

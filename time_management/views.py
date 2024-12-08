@@ -1,5 +1,6 @@
 from rest_framework import generics, views, status
 from rest_framework.response import Response
+from django.contrib.auth import authenticate
 from django.contrib.auth.models import User
 from datetime import timedelta
 from .models import UserTime
@@ -9,6 +10,42 @@ from .serializers import UserSerializer, UserTimeSerializer
 class RegisterUserView(generics.CreateAPIView):
     queryset = User.objects.all()
     serializer_class = UserSerializer
+
+# User Login Endpoint
+class LoginUserView(views.APIView):
+    def post(self, request):
+        username = request.data.get('username')
+        password = request.data.get('password')
+
+        if not username or not password:
+            return Response(
+                {"error": "Both username and password are required."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        user = authenticate(username=username, password=password)
+
+        if user:
+            # Fetch the user's remaining time
+            try:
+                user_time = UserTime.objects.get(user=user)
+                remaining_time = user_time.remaining_time
+            except UserTime.DoesNotExist:
+                remaining_time = "0:00:00"
+
+            return Response(
+                {
+                    "success": True,
+                    "username": user.username,
+                    "remaining_time": str(remaining_time)
+                },
+                status=status.HTTP_200_OK
+            )
+        else:
+            return Response(
+                {"error": "Invalid username or password."},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
 
 # Retrieve or Update Remaining Time for a User
 class UserTimeView(views.APIView):
