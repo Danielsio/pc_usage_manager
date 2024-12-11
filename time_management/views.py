@@ -1,9 +1,10 @@
 import logging
-from rest_framework import generics, views, status
-from rest_framework.response import Response
+from datetime import timedelta
 from django.contrib.auth import authenticate
 from django.contrib.auth.models import User
-from datetime import timedelta
+from rest_framework import generics, views, status
+from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated,AllowAny
 from .models import UserTime
 from .serializers import UserSerializer, UserTimeSerializer
 
@@ -14,6 +15,7 @@ logger = logging.getLogger(__name__)
 class RegisterUserView(generics.CreateAPIView):
     queryset = User.objects.all()
     serializer_class = UserSerializer
+    permission_classes = [AllowAny]
 
     def create(self, request, *args, **kwargs):
         logger.info("Attempting to register a new user.")
@@ -21,9 +23,10 @@ class RegisterUserView(generics.CreateAPIView):
         logger.info(f"User '{response.data['username']}' registered successfully.")
         return response
 
-
 # User Login Endpoint
 class LoginUserView(views.APIView):
+    permission_classes = [AllowAny]
+
     def post(self, request):
         logger.info("Login attempt received.")
         username = request.data.get('username')
@@ -60,6 +63,8 @@ class LoginUserView(views.APIView):
 
 # Retrieve or Update Remaining Time for a User
 class UserTimeView(views.APIView):
+    permission_classes = [IsAuthenticated]
+
     def get(self, request, username):
         logger.info(f"Fetching remaining time for user '{username}'.")
         try:
@@ -70,7 +75,7 @@ class UserTimeView(views.APIView):
             return Response(serializer.data, status=status.HTTP_200_OK)
         except User.DoesNotExist:
             logger.warning(f"User '{username}' not found.")
-        return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+            return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
 
     def patch(self, request, username):
         logger.info(f"Updating remaining time for user '{username}'.")
@@ -88,11 +93,11 @@ class UserTimeView(views.APIView):
             return Response({'error': 'add_minutes field is required'}, status=status.HTTP_400_BAD_REQUEST)
         except User.DoesNotExist:
             logger.warning(f"User '{username}' not found.")
-        return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+            return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
 
-
+# Update User Time
 class UpdateUserTimeView(views.APIView):
-    """Handles updating remaining time."""
+    permission_classes = [IsAuthenticated]
 
     def patch(self, request, username):
         logger.info(f"Updating remaining time for user '{username}'.")
@@ -112,4 +117,4 @@ class UpdateUserTimeView(views.APIView):
             return Response({'error': 'remaining_time field is required'}, status=status.HTTP_400_BAD_REQUEST)
         except User.DoesNotExist:
             logger.warning(f"User '{username}' not found.")
-        return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+            return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
