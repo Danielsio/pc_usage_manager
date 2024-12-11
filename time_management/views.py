@@ -70,9 +70,7 @@ class UserTimeView(views.APIView):
             return Response(serializer.data, status=status.HTTP_200_OK)
         except User.DoesNotExist:
             logger.warning(f"User '{username}' not found.")
-        except UserTime.DoesNotExist:
-            logger.warning(f"Remaining time record not found for user '{username}'.")
-        return Response({'error': 'User or time not found'}, status=status.HTTP_404_NOT_FOUND)
+        return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
 
     def patch(self, request, username):
         logger.info(f"Updating remaining time for user '{username}'.")
@@ -90,9 +88,7 @@ class UserTimeView(views.APIView):
             return Response({'error': 'add_minutes field is required'}, status=status.HTTP_400_BAD_REQUEST)
         except User.DoesNotExist:
             logger.warning(f"User '{username}' not found.")
-        except UserTime.DoesNotExist:
-            logger.warning(f"Remaining time record not found for user '{username}'.")
-        return Response({'error': 'User or time not found'}, status=status.HTTP_404_NOT_FOUND)
+        return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
 
 
 class UpdateUserTimeView(views.APIView):
@@ -116,6 +112,4 @@ class UpdateUserTimeView(views.APIView):
             return Response({'error': 'remaining_time field is required'}, status=status.HTTP_400_BAD_REQUEST)
         except User.DoesNotExist:
             logger.warning(f"User '{username}' not found.")
-        except UserTime.DoesNotExist:
-            logger.warning(f"Remaining time record not found for user '{username}'.")
-        return Response({'error': 'User or time not found'}, status=status.HTTP_404_NOT_FOUND)
+        return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
