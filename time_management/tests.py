@@ -64,7 +64,7 @@ def test_add_time(api_client, user):
     headers = {"HTTP_AUTHORIZATION": f"Bearer {access_token}"}
     response = api_client.patch(url, data, format='json', **headers)
     assert response.status_code == status.HTTP_200_OK
-    assert response.data["remaining_time"] == "00:15:00"  # 15 minutes added
+    assert user.time.remaining_time.total_seconds() == 15 * 60  # 15 minutes added
 
 
 @pytest.mark.django_db
@@ -89,7 +89,7 @@ def test_update_time(api_client, user):
     response = api_client.patch(url, data, format='json', **headers)
 
     assert response.status_code == status.HTTP_200_OK
-    assert response.data["remaining_time"] == "00:45:00"
+    assert user.time.remaining_time.total_seconds() == 2700
 
 
 @pytest.mark.django_db
@@ -106,7 +106,7 @@ def test_update_time_no_auth(api_client, user):
 
 
 @pytest.mark.django_db
-def test_login_success(api_client):
+def test_login_success(api_client, user): # user must fixture is needed for the login
     """Test successful login."""
     url = reverse("login")
     data = {"username": DEFAULT_USERNAME, "password": DEFAULT_PASSWORD}
@@ -116,10 +116,11 @@ def test_login_success(api_client):
     assert "access" in response.data
     assert "refresh" in response.data
     assert response.data["username"] == DEFAULT_USERNAME
+    assert response.data["remaining_time"] is not None
 
 
 @pytest.mark.django_db
-def test_login_failure_invalid_password(api_client):
+def test_login_failure_invalid_password(api_client, ):
     """Test login failure due to invalid credentials."""
     url = reverse("login")
     data = {"username": DEFAULT_USERNAME, "password": "wrongpassword"}
@@ -163,12 +164,43 @@ def test_login_failure_missing_fields(api_client):
 
 @pytest.mark.django_db
 def test_user_time_creation_signal(user):
-    user_time = UserTime.objects.get(user=user)
+    user_time = user.time
     assert user_time is not None
     assert user_time.remaining_time.total_seconds() == 0
+
 
 @pytest.mark.django_db
 def test_user_time_add_signal(user):
     user_time = user.time
     user_time.add_time(30)
     assert user_time.remaining_time.total_seconds() == 1800
+
+@pytest.mark.django_db
+def test_logout_success(api_client, user):
+    """Test successful logout."""
+    access_token, refresh_token = obtain_tokens(api_client, DEFAULT_USERNAME, DEFAULT_PASSWORD)
+    url = reverse('logout')
+    data = {"refresh": refresh_token}
+    headers = {"HTTP_AUTHORIZATION": f"Bearer {access_token}"}
+    response = api_client.post(url, data, format='json', **headers)
+    assert response.status_code == status.HTTP_200_OK
+    assert response.data["success"] is True
+
+@pytest.mark.django_db
+def test_logout_access_denied_after_logout(api_client, user):
+    """Test that logged-out users cannot access the API."""
+    access_token, refresh_token = obtain_tokens(api_client, DEFAULT_USERNAME, DEFAULT_PASSWORD)
+
+    # Logout the user
+    logout_url = reverse('logout')
+    logout_data = {"refresh": refresh_token}
+    logout_headers = {"HTTP_AUTHORIZATION": f"Bearer {access_token}"}
+    response = api_client.post(logout_url, logout_data, format='json', **logout_headers)
+    assert response.status_code == status.HTTP_200_OK
+
+    # Try accessing the API with the old token
+    add_time_url = reverse('user-time', kwargs={"username": user.username})
+    add_time_data = {"add_minutes": 15}
+    response = api_client.patch(add_time_url, add_time_data, format='json', **logout_headers)
+    assert response.status_code == status.HTTP_401_UNAUTHORIZED
+    assert response.data.get("detail") == "Authentication credentials were not provided."

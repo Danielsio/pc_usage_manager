@@ -69,72 +69,49 @@ class LoginUserView(views.APIView):
 class LogoutUserView(views.APIView):
     def post(self, request):
         logger.info("Logout attempt received.")
-        username = request.data.get('username')
-        remaining_time = request.data.get('remaining_time')
-
-        if not username or remaining_time is None:
-            logger.warning("Logout failed: missing username or remaining time.")
-            return Response(
-                {"error": "Both username and remaining time are required."},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
         try:
-            user = User.objects.get(username=username)
-            user_time = UserTime.objects.get(user=user)
-            user_time.remaining_time = timedelta(seconds=int(remaining_time))
-            user_time.save()
+            refresh_token = request.data.get('refresh')
+            token = RefreshToken(refresh_token)
+            token.blacklist()
 
-            logger.info(f"User '{username}' logged out successfully with remaining time updated.")
-            return Response(
-                {"success": True, "message": "Logged out successfully and remaining time updated."},
-                status=status.HTTP_200_OK
-            )
-        except User.DoesNotExist:
-            logger.warning(f"Logout failed: User '{username}' not found.")
-            return Response(
-                {"error": "User not found."},
-                status=status.HTTP_404_NOT_FOUND
-            )
+            logger.info("User logged out successfully and token revoked.")
+            return Response({"success": True, "message": "Logged out successfully and token revoked."}, status=status.HTTP_200_OK)
+        except Exception as e:
+            logger.warning(f"Logout failed: {e}")
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
-# Add time bought to user's remaining time
+
+# Add minutes bought to user's remaining time
 class UserTimeView(views.APIView):
     def patch(self, request, username):
-        logger.info(f"Updating remaining time for user '{username}'.")
-        try:
-            user = User.objects.get(username=username)
-            user_time = UserTime.objects.get(user=user)
-            data = request.data
-            if 'add_minutes' in data:
-                user_time.add_time(int(data['add_minutes']))
-                user_time.save()
-                serializer = UserTimeSerializer(user_time)
-                logger.info(f"Added {data['add_minutes']} minutes for user '{username}'.")
-                return Response(serializer.data, status=status.HTTP_200_OK)
+        user = User.objects.get(username=username)
+        user_time = user.time
+        data = request.data
+
+        if 'add_minutes' in data:
+            user_time.add_time(int(data['add_minutes']))
+            serializer = UserTimeSerializer(user_time)
+            logger.info(f"Added {data['add_minutes']} minutes for user '{username}'.")
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        else:
             logger.warning(f"Failed to update time for user '{username}': 'add_minutes' field missing.")
             return Response({'error': 'add_minutes field is required'}, status=status.HTTP_400_BAD_REQUEST)
-        except User.DoesNotExist:
-            logger.warning(f"User '{username}' not found.")
-            return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
 
 # Sync User Time
 class UpdateUserTimeView(views.APIView):
     def patch(self, request, username):
         logger.info(f"Updating remaining time for user '{username}'.")
-        try:
-            user = User.objects.get(username=username)
-            user_time = UserTime.objects.get(user=user)
-            data = request.data
+        user = User.objects.get(username=username)
+        user_time = user.time
+        data = request.data
 
-            if 'remaining_time' in data:
-                # Convert the incoming seconds to a timedelta
-                user_time.remaining_time = timedelta(seconds=int(data['remaining_time']))
-                user_time.save()
-                serializer = UserTimeSerializer(user_time)
-                logger.info(f"Updated remaining time for user '{username}' to {data['remaining_time']} seconds.")
-                return Response(serializer.data, status=status.HTTP_200_OK)
+        if 'remaining_time' in data:
+            # Convert the incoming seconds to a timedelta
+            user_time.remaining_time = timedelta(seconds=int(data['remaining_time']))
+            user_time.save()
+            serializer = UserTimeSerializer(user_time)
+            logger.info(f"Updated remaining time for user '{username}' to {data['remaining_time']} seconds.")
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        else:
             logger.warning(f"Failed to update time for user '{username}': 'remaining_time' field missing.")
             return Response({'error': 'remaining_time field is required'}, status=status.HTTP_400_BAD_REQUEST)
-        except User.DoesNotExist:
-            logger.warning(f"User '{username}' not found.")
-            return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
