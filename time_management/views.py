@@ -4,7 +4,8 @@ from django.contrib.auth import authenticate
 from django.contrib.auth.models import User
 from rest_framework import generics, views, status
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated,AllowAny
+from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework_simplejwt.tokens import RefreshToken
 from .models import UserTime
 from .serializers import UserSerializer, UserTimeSerializer
 
@@ -43,6 +44,7 @@ class LoginUserView(views.APIView):
 
         if user:
             logger.info(f"User '{username}' authenticated successfully.")
+            refresh = RefreshToken.for_user(user)
             user_time = UserTime.objects.get(user=user)
             remaining_time = user_time.remaining_time
 
@@ -50,7 +52,9 @@ class LoginUserView(views.APIView):
                 {
                     "success": True,
                     "username": user.username,
-                    "remaining_time": str(remaining_time)
+                    "remaining_time": str(remaining_time),
+                    "access": str(refresh.access_token),
+                    "refresh": str(refresh),
                 },
                 status=status.HTTP_200_OK
             )
@@ -61,22 +65,40 @@ class LoginUserView(views.APIView):
                 status=status.HTTP_401_UNAUTHORIZED
             )
 
-# Retrieve or Update Remaining Time for a User
-class UserTimeView(views.APIView):
-    permission_classes = [IsAuthenticated]
+# User Logout Endpoint
+class LogoutUserView(views.APIView):
+    def post(self, request):
+        logger.info("Logout attempt received.")
+        username = request.data.get('username')
+        remaining_time = request.data.get('remaining_time')
 
-    def get(self, request, username):
-        logger.info(f"Fetching remaining time for user '{username}'.")
+        if not username or remaining_time is None:
+            logger.warning("Logout failed: missing username or remaining time.")
+            return Response(
+                {"error": "Both username and remaining time are required."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
         try:
             user = User.objects.get(username=username)
             user_time = UserTime.objects.get(user=user)
-            serializer = UserTimeSerializer(user_time)
-            logger.info(f"Remaining time for user '{username}': {user_time.remaining_time}.")
-            return Response(serializer.data, status=status.HTTP_200_OK)
-        except User.DoesNotExist:
-            logger.warning(f"User '{username}' not found.")
-            return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+            user_time.remaining_time = timedelta(seconds=int(remaining_time))
+            user_time.save()
 
+            logger.info(f"User '{username}' logged out successfully with remaining time updated.")
+            return Response(
+                {"success": True, "message": "Logged out successfully and remaining time updated."},
+                status=status.HTTP_200_OK
+            )
+        except User.DoesNotExist:
+            logger.warning(f"Logout failed: User '{username}' not found.")
+            return Response(
+                {"error": "User not found."},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+# Add time bought to user's remaining time
+class UserTimeView(views.APIView):
     def patch(self, request, username):
         logger.info(f"Updating remaining time for user '{username}'.")
         try:
@@ -95,10 +117,8 @@ class UserTimeView(views.APIView):
             logger.warning(f"User '{username}' not found.")
             return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
 
-# Update User Time
+# Sync User Time
 class UpdateUserTimeView(views.APIView):
-    permission_classes = [IsAuthenticated]
-
     def patch(self, request, username):
         logger.info(f"Updating remaining time for user '{username}'.")
         try:
