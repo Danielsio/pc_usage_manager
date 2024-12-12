@@ -58,19 +58,20 @@ def test_user_registration(api_client):
 @pytest.mark.django_db
 def test_add_time(api_client, user):
     """Test adding time to a user's remaining time."""
-    access_token, refresh_token = obtain_tokens(api_client, DEFAULT_USERNAME, DEFAULT_PASSWORD)
-    url = reverse('user-time', kwargs={"username": user.username})
+    access_token, refresh_token = obtain_tokens(api_client, user.username, DEFAULT_PASSWORD)
+    url = reverse('add-user-minutes', kwargs={"username": user.username})
     data = {"add_minutes": 15}
     headers = {"HTTP_AUTHORIZATION": f"Bearer {access_token}"}
     response = api_client.patch(url, data, format='json', **headers)
     assert response.status_code == status.HTTP_200_OK
-    assert user.time.remaining_time.total_seconds() == 15 * 60  # 15 minutes added
 
+    updated_user = User.objects.get(username=user.username)
+    assert updated_user.time.remaining_time.total_seconds() == 15 * 60  # 15 minutes added
 
 @pytest.mark.django_db
 def test_add_time_no_auth(api_client, user):
     """Test adding time to a user's remaining time without authentication."""
-    url = reverse('user-time', kwargs={"username": user.username})
+    url = reverse('add-user-minutes', kwargs={"username": user.username})
     data = {"add_minutes": 15}
     response = api_client.patch(url, data, format='json')
     assert response.status_code == status.HTTP_403_FORBIDDEN
@@ -81,7 +82,7 @@ def test_add_time_no_auth(api_client, user):
 def test_update_time(api_client, user):
     """Test updating a user's remaining time."""
     access_token, refresh_token = obtain_tokens(api_client, DEFAULT_USERNAME, DEFAULT_PASSWORD)
-    url = reverse('update-user-time', kwargs={"username": user.username})
+    url = reverse('sync-user-remaining-time', kwargs={"username": user.username})
 
     # Send remaining_time in seconds (45 minutes = 2700 seconds)
     data = {"remaining_time": 2700}
@@ -89,13 +90,15 @@ def test_update_time(api_client, user):
     response = api_client.patch(url, data, format='json', **headers)
 
     assert response.status_code == status.HTTP_200_OK
-    assert user.time.remaining_time.total_seconds() == 2700
+
+    updated_user = User.objects.get(username=user.username)
+    assert updated_user.time.remaining_time.total_seconds() == 2700
 
 
 @pytest.mark.django_db
 def test_update_time_no_auth(api_client, user):
     """Test updating a user's remaining time without authentication."""
-    url = reverse('update-user-time', kwargs={"username": user.username})
+    url = reverse('sync-user-remaining-time', kwargs={"username": user.username})
 
     # Send remaining_time in seconds (45 minutes = 2700 seconds)
     data = {"remaining_time": 2700}
@@ -199,8 +202,8 @@ def test_logout_access_denied_after_logout(api_client, user):
     assert response.status_code == status.HTTP_200_OK
 
     # Try accessing the API with the old token
-    add_time_url = reverse('user-time', kwargs={"username": user.username})
-    add_time_data = {"add_minutes": 15}
-    response = api_client.patch(add_time_url, add_time_data, format='json', **logout_headers)
+    add_user_minutes_url = reverse('add-user-minutes', kwargs={"username": user.username})
+    add_minutes_data = {"add_minutes": 15}
+    response = api_client.patch(add_user_minutes_url, add_minutes_data, format='json', **logout_headers)
     assert response.status_code == status.HTTP_401_UNAUTHORIZED
     assert response.data.get("detail") == "Authentication credentials were not provided."

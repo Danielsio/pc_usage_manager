@@ -6,8 +6,8 @@ urlpatterns = [
     path('register/', RegisterUserView.as_view(), name='register'),
     path('login/', LoginUserView.as_view(), name='login'),
     path('logout/', LogoutUserView.as_view(), name='logout'),
-    path('users/<str:username>/time/', UserTimeView.as_view(), name='user-time'),
-    path('users/<str:username>/time/update/', UpdateUserTimeView.as_view(), name='update-user-time'),
+    path('users/<str:username>/time/', UserTimeView.as_view(), name='add-user-minutes'),
+    path('users/<str:username>/time/update/', UpdateUserTimeView.as_view(), name='sync-user-remaining-time'),
     path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
 ]
