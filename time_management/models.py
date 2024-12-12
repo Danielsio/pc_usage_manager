@@ -10,9 +10,5 @@ class UserTime(models.Model):
         self.remaining_time += timedelta(minutes=minutes)
         self.save()
 
-    def reduce_time(self, minutes):
-        self.remaining_time -= timedelta(minutes=minutes)
-        self.save()
-
     def __str__(self):
         return f"{self.user.username}: {self.remaining_time}"
